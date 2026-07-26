@@ -4,9 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Interactive Map Coordinate Tool</title>
-    <!-- Tailwind CSS for styling -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
 </head>
 <body class="bg-gray-100 h-screen flex flex-col">
@@ -19,7 +17,7 @@
             <button onclick="searchAddress()" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition">Search</button>
         </div>
         <div class="flex items-center gap-2">
-            <label class="text-sm font-medium text-gray-600">Format:</label>
+            <label class="text-sm font-medium text-gray-600">Display Format:</label>
             <select id="formatSelect" onchange="toggleFormat()" class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
                 <option value="decimal">Decimal Degrees (DD)</option>
                 <option value="wgs84">WGS84 (DMS)</option>
@@ -36,8 +34,10 @@
             <!-- Section: Add Coordinates -->
             <div>
                 <h2 class="text-lg font-semibold text-gray-700 mb-2">Add Points</h2>
-                <p class="text-xs text-gray-500 mb-2" id="formatHelpText">Enter single or multiple points (Lat, Lon per line):</p>
-                <textarea id="coordInput" rows="4" placeholder="e.g., 37.7749, -122.4194&#10;34.0522, -118.2437" class="w-full border border-gray-300 rounded-lg p-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
+                <p class="text-xs text-gray-500 mb-2">
+                    Enter Decimal or WGS84 (e.g., <code class="bg-gray-100 p-0.5 rounded">32.1, 34.8</code> or <code class="bg-gray-100 p-0.5 rounded">32 6 33 N, 34 51 19 E</code>):
+                </p>
+                <textarea id="coordInput" rows="4" placeholder="32.1093, 34.8555&#10;32 6 33.6 N, 34 51 19.8 E" class="w-full border border-gray-300 rounded-lg p-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
                 <button onclick="plotManualCoordinates()" class="w-full mt-2 bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 transition text-sm font-medium">Plot Points / Drop Pins</button>
             </div>
 
@@ -46,13 +46,13 @@
             <!-- Section: Read from File -->
             <div>
                 <h2 class="text-lg font-semibold text-gray-700 mb-2">Load from File</h2>
-                <p class="text-xs text-gray-500 mb-2">Upload .txt or .csv (Lat, Lon per line):</p>
+                <p class="text-xs text-gray-500 mb-2">Upload .txt or .csv file:</p>
                 <input type="file" id="fileInput" accept=".txt,.csv" onchange="handleFileUpload(event)" class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
             </div>
 
             <hr class="border-gray-200">
 
-            <!-- Section: Clicked/Active Points Readout -->
+            <!-- Section: Pinned Points Readout -->
             <div class="flex-1 flex flex-col">
                 <div class="flex justify-between items-center mb-2">
                     <h2 class="text-lg font-semibold text-gray-700">Pinned Points</h2>
@@ -71,39 +71,28 @@
         </main>
     </div>
 
-    <!-- Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
     
     <script>
-        // Initialize Map
-        const map = L.map('map').setView([32.109333, 34.855499], 11); // Default center (Center District / Israel area or general)
+        const map = L.map('map').setView([32.109333, 34.855499], 11);
 
-        // Add OpenStreetMap tile layer
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             maxZoom: 19,
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            attribution: '&copy; OpenStreetMap contributors'
         }).addTo(map);
 
         let markers = [];
-        let currentFormat = 'decimal'; // 'decimal' or 'wgs84'
+        let currentFormat = 'decimal';
 
-        // Map Click Event to Drop Pin and Display Coordinate
         map.on('click', function(e) {
-            addPin(e.latlng.lat, e.latlng.lng, "Pinned from Map");
+            addPin(e.latlng.lat, e.latlng.lng);
         });
 
         function toggleFormat() {
             currentFormat = document.getElementById('formatSelect').value;
-            const helpText = document.getElementById('formatHelpText');
-            if (currentFormat === 'wgs84') {
-                helpText.innerText = "Format: DD° MM' SS.SS\" N/S, DD° MM' SS.SS\" E/W (one per line)";
-            } else {
-                helpText.innerText = "Enter single or multiple points (Lat, Lon per line):";
-            }
             updatePointsSidebar();
         }
 
-        // Convert Decimal to DMS (WGS84 string format)
         function decimalToDMS(lat, lng) {
             function formatDMS(coord, isLat) {
                 const absolute = Math.abs(coord);
@@ -111,62 +100,64 @@
                 const minutesNotTruncated = (absolute - degrees) * 60;
                 const minutes = Math.floor(minutesNotTruncated);
                 const seconds = ((minutesNotTruncated - minutes) * 60).toFixed(2);
-                
-                let direction = "";
-                if (isLat) {
-                    direction = coord >= 0 ? "N" : "S";
-                } else {
-                    direction = coord >= 0 ? "E" : "W";
-                }
+                const direction = isLat ? (coord >= 0 ? "N" : "S") : (coord >= 0 ? "E" : "W");
                 return `${degrees}° ${minutes}' ${seconds}" ${direction}`;
             }
             return `${formatDMS(lat, true)}, ${formatDMS(lng, false)}`;
         }
 
-        // Parse coordinate string input supporting both Decimal and DMS formats roughly
+        // Smart parser supporting Decimal, standard DMS symbols, and mobile space/colon input formats
         function parseCoordinateLine(line) {
             line = line.trim();
             if (!line) return null;
 
-            // Check if it's decimal (contains numbers, commas, standard signs)
-            if (!line.includes('°')) {
+            // 1. Try standard decimal parsing if it has no letters other than standard scientific notation or negative signs
+            if (!/[nsew]/i.test(line) && !line.includes('°') && !line.includes(':')) {
                 const parts = line.split(/[,;\s]+/);
                 if (parts.length >= 2) {
                     const lat = parseFloat(parts[0]);
                     const lng = parseFloat(parts[1]);
                     if (!isNaN(lat) && !isNaN(lng)) return { lat, lng };
                 }
-            } else {
-                // Basic DMS parser heuristic
-                // Example: 40° 26' 46" N, 79° 58' 56" W
-                try {
-                    // This is a simplified regex-based parser for standard DMS strings
-                    const regex = /([0-9.]+)[°\s]+([0-9.]+)?['\s]+([0-9.]+)?["\s]*([NSEW])/gi;
-                    let matches = [...line.matchAll(regex)];
-                    if (matches.length >= 2) {
-                        let latVal = parseFloat(matches[0][1]) + (matches[0][2] ? parseFloat(matches[0][2])/60 : 0) + (matches[0][3] ? parseFloat(matches[0][3])/3600 : 0);
-                        if (matches[0][4].toUpperCase() === 'S') latVal *= -1;
+            }
 
-                        let lngVal = parseFloat(matches[1][1]) + (matches[1][2] ? parseFloat(matches[1][2])/60 : 0) + (matches[1][3] ? parseFloat(matches[1][3])/3600 : 0);
-                        if (matches[1][4].toUpperCase() === 'W') lngVal *= -1;
+            // 2. Try parsing DMS / Mobile friendly formats (handles degrees, minutes, seconds using spaces, colons, or symbols)
+            try {
+                // Clean up multiple spaces
+                let cleanLine = line.replace(/\s+/g, ' ');
+                
+                // Regex to match parts like: 32 6 33.6 N or 32:6:33.6N or 32° 6' N
+                const regex = /([0-9.]+)(?:[°:\s]+([0-9.]+))?(?:[':\s]+([0-9.]+))?["\s]*([nsew])/gi;
+                let matches = [...cleanLine.matchAll(regex)];
 
+                if (matches.length >= 2) {
+                    let latVal = parseFloat(matches[0][1]) + 
+                                 (matches[0][2] ? parseFloat(matches[0][2])/60 : 0) + 
+                                 (matches[0][3] ? parseFloat(matches[0][3])/3600 : 0);
+                    if (matches[0][4].toUpperCase() === 'S') latVal *= -1;
+
+                    let lngVal = parseFloat(matches[1][1]) + 
+                                 (matches[1][2] ? parseFloat(matches[1][2])/60 : 0) + 
+                                 (matches[1][3] ? parseFloat(matches[1][3])/3600 : 0);
+                    if (matches[1][4].toUpperCase() === 'W') lngVal *= -1;
+
+                    if (!isNaN(latVal) && !isNaN(lngVal)) {
                         return { lat: latVal, lng: lngVal };
                     }
-                } catch (e) {
-                    console.error("DMS parse error", e);
                 }
+            } catch (e) {
+                console.error("Parsing error:", e);
             }
+
             return null;
         }
 
-        // Add pin to map and array
-        function addPin(lat, lng, label = "") {
+        function addPin(lat, lng) {
             const marker = L.marker([lat, lng]).addTo(map);
-            markers.push({ marker, lat, lng, label });
+            markers.push({ marker, lat, lng });
             updatePointsSidebar();
         }
 
-        // Update Sidebar UI with list of points
         function updatePointsSidebar() {
             const listContainer = document.getElementById('pointsList');
             listContainer.innerHTML = '';
@@ -177,12 +168,9 @@
             }
 
             markers.forEach((item, index) => {
-                let displayCoord = "";
-                if (currentFormat === 'wgs84') {
-                    displayCoord = decimalToDMS(item.lat, item.lng);
-                } else {
-                    displayCoord = `${item.lat.toFixed(6)}, ${item.lng.toFixed(6)}`;
-                }
+                let displayCoord = currentFormat === 'wgs84' 
+                    ? decimalToDMS(item.lat, item.lng) 
+                    : `${item.lat.toFixed(6)}, ${item.lng.toFixed(6)}`;
 
                 const div = document.createElement('div');
                 div.className = "flex justify-between items-center bg-white p-2 rounded border border-gray-200 shadow-sm";
@@ -218,7 +206,6 @@
             updatePointsSidebar();
         }
 
-        // Plot manual input coordinates from textarea
         function plotManualCoordinates() {
             const text = document.getElementById('coordInput').value;
             const lines = text.split('\n');
@@ -237,15 +224,13 @@
             }
         }
 
-        // Handle File Upload (.txt or .csv)
         function handleFileUpload(event) {
             const file = event.target.files[0];
             if (!file) return;
 
             const reader = new FileReader();
             reader.onload = function(e) {
-                const content = e.target.result;
-                const lines = content.split('\n');
+                const lines = e.target.result.split('\n');
                 let firstCoord = null;
 
                 lines.forEach(line => {
@@ -263,7 +248,6 @@
             reader.readAsText(file);
         }
 
-        // Address Search using Nominatim API
         async function searchAddress() {
             const query = document.getElementById('addressSearchInput').value;
             if (!query) return;
@@ -276,13 +260,12 @@
                     const lat = parseFloat(data[0].lat);
                     const lon = parseFloat(data[0].lon);
                     map.setView([lat, lon], 14);
-                    addPin(lat, lon, data[0].display_name);
+                    addPin(lat, lon);
                 } else {
                     alert("Address not found.");
                 }
             } catch (error) {
                 console.error("Geocoding error:", error);
-                alert("Error searching address.");
             }
         }
     </script>
